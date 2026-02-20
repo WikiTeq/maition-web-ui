@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   FULL_IMAGE_NAME: ghcr.io/wikiteq/maition-web-ui
+  NODE_OPTIONS: --max-old-space-size=4096
 
 # main images only, cuda- and ollama- versions are disabled
 

@@ -16,6 +16,9 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
 
+env:
+  NODE_OPTIONS: --max-old-space-size=4096
+
 jobs:
   build:
     name: 'Format Backend'
