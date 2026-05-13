@@ -12,7 +12,7 @@ export default {
 	defaultNamespace: 'translation',
 	defaultValue: '',
 	indentation: 2,
-	keepRemoved: false,
+	keepRemoved: true,
 	keySeparator: false,
 	lexers: {
 		svelte: ['JavascriptLexer'],
