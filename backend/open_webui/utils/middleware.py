@@ -1371,114 +1371,139 @@ async def process_chat_response(
                         attributes[key] = value
                     return attributes
 
-                def close_active_tag_block(stream_content):
-                    nonlocal content, end_flag
-
-                    if (
-                        not stream_content
-                        or content_blocks[-1]["type"] != content_type
-                    ):
-                        return
-
-                    start_tag = content_blocks[-1]["start_tag"]
-                    end_tag = content_blocks[-1]["end_tag"]
-                    end_tag_pattern = rf"<{re.escape(end_tag)}>"
-
-                    if not re.search(end_tag_pattern, stream_content):
-                        return
-
-                    end_flag = True
-
-                    block_content = content_blocks[-1]["content"]
-                    start_tag_pattern = rf"<{re.escape(start_tag)}(.*?)>"
-                    block_content = re.sub(
-                        start_tag_pattern, "", block_content
-                    ).strip()
-
-                    end_tag_regex = re.compile(end_tag_pattern, re.DOTALL)
-                    split_content = end_tag_regex.split(block_content, maxsplit=1)
-
-                    block_content = (
-                        split_content[0].strip() if split_content else ""
-                    )
-                    leftover_content = (
-                        split_content[1].strip() if len(split_content) > 1 else ""
-                    )
-
-                    if block_content:
-                        content_blocks[-1]["content"] = block_content
-                        content_blocks[-1]["ended_at"] = time.time()
-                        content_blocks[-1]["duration"] = int(
-                            content_blocks[-1]["ended_at"]
-                            - content_blocks[-1]["started_at"]
-                        )
-
-                        if content_type != "code_interpreter":
-                            content_blocks.append(
-                                {
-                                    "type": "text",
-                                    "content": leftover_content or "",
-                                }
-                            )
-                    else:
-                        content_blocks.pop()
-                        content_blocks.append(
-                            {
-                                "type": "text",
-                                "content": leftover_content or "",
-                            }
-                        )
-
-                    content = re.sub(
-                        rf"<{re.escape(start_tag)}(.*?)>(.|\n)*?<{re.escape(end_tag)}>",
-                        "",
-                        stream_content,
-                        flags=re.DOTALL,
-                    )
-
-                block_type = content_blocks[-1]["type"]
-
-                if block_type == "text":
+                if content_blocks[-1]["type"] == "text":
                     for start_tag, end_tag in tags:
+                        # Match start tag e.g., <tag> or <tag attr="value">
                         start_tag_pattern = rf"<{re.escape(start_tag)}(\s.*?)?>"
                         match = re.search(start_tag_pattern, content)
-                        if not match:
-                            continue
+                        if match:
+                            attr_content = (
+                                match.group(1) if match.group(1) else ""
+                            )  # Ensure it's not None
+                            attributes = extract_attributes(
+                                attr_content
+                            )  # Extract attributes safely
 
-                        attr_content = match.group(1) if match.group(1) else ""
-                        attributes = extract_attributes(attr_content)
+                            # Capture everything before and after the matched tag
+                            before_tag = content[
+                                : match.start()
+                            ]  # Content before opening tag
+                            after_tag = content[
+                                match.end() :
+                            ]  # Content after opening tag
 
-                        before_tag = content[: match.start()]
-                        after_tag = content[match.end() :]
+                            # Remove the start tag and after from the currently handling text block
+                            content_blocks[-1]["content"] = content_blocks[-1][
+                                "content"
+                            ].replace(match.group(0) + after_tag, "")
 
-                        content_blocks[-1]["content"] = content_blocks[-1][
-                            "content"
-                        ].replace(match.group(0) + after_tag, "")
+                            if before_tag:
+                                content_blocks[-1]["content"] = before_tag
 
-                        if before_tag:
-                            content_blocks[-1]["content"] = before_tag
+                            if not content_blocks[-1]["content"]:
+                                content_blocks.pop()
 
-                        if not content_blocks[-1]["content"]:
-                            content_blocks.pop()
+                            # Append the new block
+                            content_blocks.append(
+                                {
+                                    "type": content_type,
+                                    "start_tag": start_tag,
+                                    "end_tag": end_tag,
+                                    "attributes": attributes,
+                                    "content": "",
+                                    "started_at": time.time(),
+                                }
+                            )
 
-                        content_blocks.append(
-                            {
-                                "type": content_type,
-                                "start_tag": start_tag,
-                                "end_tag": end_tag,
-                                "attributes": attributes,
-                                "content": "",
-                                "started_at": time.time(),
-                            }
+                            if after_tag:
+                                content_blocks[-1]["content"] = after_tag
+                                return tag_content_handler(
+                                    content_type, tags, after_tag, content_blocks
+                                )
+
+                            break
+                elif content_blocks[-1]["type"] == content_type:
+                    start_tag = content_blocks[-1]["start_tag"]
+                    end_tag = content_blocks[-1]["end_tag"]
+                    # Match end tag e.g., </tag>
+                    end_tag_pattern = rf"<{re.escape(end_tag)}>"
+
+                    # Check if the content has the end tag
+                    if re.search(end_tag_pattern, content):
+                        end_flag = True
+
+                        block_content = content_blocks[-1]["content"]
+                        # Strip start and end tags from the content
+                        start_tag_pattern = rf"<{re.escape(start_tag)}(.*?)>"
+                        block_content = re.sub(
+                            start_tag_pattern, "", block_content
+                        ).strip()
+
+                        end_tag_regex = re.compile(end_tag_pattern, re.DOTALL)
+                        split_content = end_tag_regex.split(block_content, maxsplit=1)
+
+                        # Content inside the tag
+                        block_content = (
+                            split_content[0].strip() if split_content else ""
                         )
 
-                        if after_tag:
-                            content_blocks[-1]["content"] = after_tag
-                            close_active_tag_block(after_tag)
-                        break
+                        # Leftover content (everything after `</tag>`)
+                        leftover_content = (
+                            split_content[1].strip() if len(split_content) > 1 else ""
+                        )
 
-                elif block_type == content_type:
-                    close_active_tag_block(content)
+                        if block_content:
+                            content_blocks[-1]["content"] = block_content
+                            content_blocks[-1]["ended_at"] = time.time()
+                            content_blocks[-1]["duration"] = int(
+                                content_blocks[-1]["ended_at"]
+                                - content_blocks[-1]["started_at"]
+                            )
+
+                            # Reset the content_blocks by appending a new text block
+                            if content_type != "code_interpreter":
+                                if leftover_content:
+
+                                    content_blocks.append(
+                                        {
+                                            "type": "text",
+                                            "content": leftover_content,
+                                        }
+                                    )
+                                else:
+                                    content_blocks.append(
+                                        {
+                                            "type": "text",
+                                            "content": "",
+                                        }
+                                    )
+
+                        else:
+                            # Remove the block if content is empty
+                            content_blocks.pop()
+
+                            if leftover_content:
+                                content_blocks.append(
+                                    {
+                                        "type": "text",
+                                        "content": leftover_content,
+                                    }
+                                )
+                            else:
+                                content_blocks.append(
+                                    {
+                                        "type": "text",
+                                        "content": "",
+                                    }
+                                )
+
+                        # Clean processed content
+                        content = re.sub(
+                            rf"<{re.escape(start_tag)}(.*?)>(.|\n)*?<{re.escape(end_tag)}>",
+                            "",
+                            content,
+                            flags=re.DOTALL,
+                        )
 
                 return content, content_blocks, end_flag
 
