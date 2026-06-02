@@ -15,6 +15,7 @@ on:
       - 'backend/**'
       - 'pyproject.toml'
       - 'uv.lock'
+  workflow_dispatch:
 
 env:
   NODE_OPTIONS: --max-old-space-size=4096
