@@ -1417,11 +1417,12 @@ async def process_chat_response(
 
                             if after_tag:
                                 content_blocks[-1]["content"] = after_tag
-                                return tag_content_handler(
-                                    content_type, tags, after_tag, content_blocks
-                                )
 
-                            break
+                            # Re-run the handler on the remainder so an end tag
+                            # arriving in the same chunk is handled too.
+                            return tag_content_handler(
+                                content_type, tags, after_tag, content_blocks
+                            )
                 elif content_blocks[-1]["type"] == content_type:
                     start_tag = content_blocks[-1]["start_tag"]
                     end_tag = content_blocks[-1]["end_tag"]
