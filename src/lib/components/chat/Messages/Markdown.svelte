@@ -15,7 +15,7 @@
 	export let content;
 	export let model = null;
 	export let save = false;
-	export let messageDone = false;
+	export let msgCompleted = false;
 
 	export let sourceIds = [];
 
@@ -45,7 +45,7 @@
 		{tokens}
 		{id}
 		{save}
-		{messageDone}
+		{msgCompleted}
 		{onTaskClick}
 		{onSourceClick}
 		on:update={(e) => {

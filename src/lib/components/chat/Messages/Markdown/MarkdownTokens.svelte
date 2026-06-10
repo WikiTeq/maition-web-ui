@@ -30,7 +30,7 @@
 	export let attributes = {};
 
 	export let save = false;
-	export let messageDone = false;
+	export let msgCompleted = false;
 
 	export let onTaskClick: Function = () => {};
 	export let onSourceClick: Function = () => {};
@@ -254,7 +254,7 @@
 			title={token.summary}
 			open={$settings?.expandDetails ?? false}
 			attributes={token?.attributes}
-			{messageDone}
+			{msgCompleted}
 			className="w-full space-y-1"
 			dir="auto"
 		>

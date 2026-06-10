@@ -788,7 +788,7 @@
 										content={message.content}
 										sources={message.sources}
 										floatingButtons={message?.done && !readOnly}
-										messageDone={message?.done ?? false}
+										msgCompleted={message?.done ?? false}
 										save={!readOnly}
 										{model}
 										onTaskClick={async (e) => {
