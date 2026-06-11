@@ -187,6 +187,27 @@ def append_or_update_assistant_message(content: str, messages: list[dict]):
     return messages
 
 
+_UI_DETAILS_PATTERN = re.compile(
+    r"<details\s+type=[\"'](reasoning|tool_calls|code_interpreter)[\"'][^>]*>.*?</details>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def strip_ui_tags_from_messages(messages: list[dict]) -> list[dict]:
+    # UI-only <details> tags (reasoning, tool_calls, code_interpreter) are stored in
+    # assistant message content for display purposes but must not be sent back to the
+    # LLM as history — the model learns to emit them itself if it sees them.
+    # content can be a list for multimodal messages, skip those.
+    for message in messages:
+        if message.get("role") == "assistant" and isinstance(
+            message.get("content"), str
+        ):
+            message["content"] = _UI_DETAILS_PATTERN.sub(
+                "", message["content"]
+            ).strip()
+    return messages
+
+
 def openai_chat_message_template(model: str):
     return {
         "id": f"{model}-{str(uuid.uuid4())}",

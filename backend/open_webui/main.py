@@ -361,6 +361,7 @@ from open_webui.utils.chat import (
     chat_action as chat_action_handler,
 )
 from open_webui.utils.middleware import process_chat_payload, process_chat_response
+from open_webui.utils.misc import strip_ui_tags_from_messages
 from open_webui.utils.access_control import has_access
 
 from open_webui.utils.auth import (
@@ -1130,6 +1131,8 @@ async def chat_completion(
         form_data, metadata, events = await process_chat_payload(
             request, form_data, user, metadata, model
         )
+
+        form_data["messages"] = strip_ui_tags_from_messages(form_data["messages"])
 
     except Exception as e:
         log.debug(f"Error processing chat payload: {e}")
