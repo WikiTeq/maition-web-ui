@@ -16,6 +16,7 @@
 
 	export let save = false;
 	export let floatingButtons = true;
+	export let msgCompleted = false;
 
 	export let onSourceClick = () => {};
 	export let onTaskClick = () => {};
@@ -122,6 +123,7 @@
 		{content}
 		{model}
 		{save}
+		{msgCompleted}
 		sourceIds={(sources ?? []).reduce((acc, s) => {
 			let ids = [];
 			s.document.forEach((document, index) => {

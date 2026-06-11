@@ -1830,6 +1830,18 @@ async def process_chat_response(
                                 continue
 
                     if content_blocks:
+                        # Finalize any reasoning block that never got closed by text content
+                        last_block = content_blocks[-1]
+                        if (
+                            last_block["type"] == "reasoning"
+                            and last_block.get("duration") is None
+                            and last_block.get("started_at") is not None
+                        ):
+                            last_block["ended_at"] = time.time()
+                            last_block["duration"] = int(
+                                last_block["ended_at"] - last_block["started_at"]
+                            )
+
                         # Clean up the last text block
                         if content_blocks[-1]["type"] == "text":
                             content_blocks[-1]["content"] = content_blocks[-1][

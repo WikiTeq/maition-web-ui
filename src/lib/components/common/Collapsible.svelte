@@ -54,6 +54,7 @@
 
 	export let disabled = false;
 	export let hide = false;
+	export let msgCompleted = false;
 
 	const collapsibleId = uuidv4();
 
@@ -96,12 +97,12 @@
 		>
 			<div
 				class=" w-full font-medium flex items-center justify-between gap-2 {attributes?.done &&
-				attributes?.done !== 'true'
+				attributes?.done !== 'true' && !msgCompleted
 					? 'shimmer'
 					: ''}
 			"
 			>
-				{#if attributes?.done && attributes?.done !== 'true'}
+				{#if attributes?.done && attributes?.done !== 'true' && !msgCompleted}
 					<div>
 						<Spinner className="size-4" />
 					</div>
