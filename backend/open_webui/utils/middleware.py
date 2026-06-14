@@ -1326,7 +1326,9 @@ async def process_chat_response(
                         messages.append(
                             {
                                 "role": "assistant",
-                                "content": serialize_content_blocks(temp_blocks),
+                                "content": serialize_content_blocks(
+                                    [b for b in temp_blocks if b["type"] != "reasoning"]
+                                ),
                                 "tool_calls": block.get("content"),
                             }
                         )
@@ -1346,7 +1348,9 @@ async def process_chat_response(
                         temp_blocks.append(block)
 
                 if temp_blocks:
-                    content = serialize_content_blocks(temp_blocks)
+                    content = serialize_content_blocks(
+                        [b for b in temp_blocks if b["type"] != "reasoning"]
+                    )
                     if content:
                         messages.append(
                             {
