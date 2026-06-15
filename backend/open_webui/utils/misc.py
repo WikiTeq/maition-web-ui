@@ -192,6 +192,13 @@ _UI_DETAILS_PATTERN = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
+# Some models emit raw self-closing <tool_calls .../> XML instead of structured
+# function calls. Strip these too so they don't appear in LLM history.
+_RAW_TOOL_CALLS_PATTERN = re.compile(
+    r"<tool_calls\b[^>]*/?>(?:.*?</tool_calls>)?",
+    re.DOTALL | re.IGNORECASE,
+)
+
 
 def strip_ui_tags_from_messages(messages: list[dict]) -> list[dict]:
     # UI-only <details> tags (reasoning, tool_calls, code_interpreter) are stored in
@@ -202,9 +209,9 @@ def strip_ui_tags_from_messages(messages: list[dict]) -> list[dict]:
         if message.get("role") == "assistant" and isinstance(
             message.get("content"), str
         ):
-            message["content"] = _UI_DETAILS_PATTERN.sub(
-                "", message["content"]
-            ).strip()
+            content = _UI_DETAILS_PATTERN.sub("", message["content"])
+            content = _RAW_TOOL_CALLS_PATTERN.sub("", content)
+            message["content"] = content.strip()
     return messages
 
 
