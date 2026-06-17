@@ -1,11 +1,12 @@
 import hashlib
+import html
 import re
 import time
 import uuid
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 import json
 
 
@@ -187,32 +188,173 @@ def append_or_update_assistant_message(content: str, messages: list[dict]):
     return messages
 
 
-_UI_DETAILS_PATTERN = re.compile(
-    r"<details\s+type=[\"'](reasoning|tool_calls|code_interpreter)[\"'][^>]*>.*?</details>",
+_NON_TOOL_DETAILS_PATTERN = re.compile(
+    r"<details\s+type=[\"'](reasoning|code_interpreter)[\"'][^>]*>.*?</details>",
     re.DOTALL | re.IGNORECASE,
 )
 
-# Some models emit raw self-closing <tool_calls .../> XML instead of structured
-# function calls. Strip these too so they don't appear in LLM history.
-_RAW_TOOL_CALLS_PATTERN = re.compile(
-    r"<tool_calls\b[^>]*/?>(?:.*?</tool_calls>)?",
+# Matches <details type="tool_calls" ...> blocks stored in DB by serialize_content_blocks.
+_TOOL_CALLS_DETAILS_PATTERN = re.compile(
+    r'<details\s+type=["\']tool_calls["\'][^>]*>.*?</details>',
     re.DOTALL | re.IGNORECASE,
 )
 
+# Matches self-closing <tool_calls .../> tags produced by the frontend's processDetails()
+# which converts stored <details type="tool_calls"> into this compact form before sending
+# history back to the backend.
+# Group 1 = full attribute string inside the tag.
+_INLINE_TOOL_CALLS_PATTERN = re.compile(
+    r"<tool_calls\b([^/]*)/?>",
+    re.DOTALL | re.IGNORECASE,
+)
 
-def strip_ui_tags_from_messages(messages: list[dict]) -> list[dict]:
-    # UI-only <details> tags (reasoning, tool_calls, code_interpreter) are stored in
-    # assistant message content for display purposes but must not be sent back to the
-    # LLM as history — the model learns to emit them itself if it sees them.
-    # content can be a list for multimodal messages, skip those.
+_ATTR_PATTERN = re.compile(r'(\w+)="([^"]*)"')
+
+
+def _parse_attrs(tag: str) -> dict:
+    return dict(_ATTR_PATTERN.findall(tag))
+
+
+def _decode_result(raw: str) -> str:
+    """HTML-unescape and unwrap a double-JSON-encoded result attribute value."""
+    try:
+        value = html.unescape(raw)
+        parsed = json.loads(value)
+        if isinstance(parsed, str):
+            return parsed
+        return value
+    except Exception:
+        return raw
+
+
+def _expand_blocks(content: str, pattern: re.Pattern, id_prefix: str) -> list[dict]:
+    """Split content on matched tool-call blocks and return expanded message list.
+
+    Each matched block becomes a role:assistant (with tool_calls) + role:tool pair.
+    Text preceding each block goes into the assistant message content.
+    Trailing text after all blocks becomes a final role:assistant message.
+    Blocks without a result attribute are stripped (model-emitted leakage).
+    """
+    parts: list[str] = []
+    blocks: list[dict] = []
+    last_end = 0
+    for match in pattern.finditer(content):
+        parts.append(content[last_end : match.start()])
+        blocks.append(_parse_attrs(match.group()))
+        last_end = match.end()
+    parts.append(content[last_end:])
+
+    # Strip non-tool UI tags from text segments.
+    def clean(text: str) -> str:
+        text = _NON_TOOL_DETAILS_PATTERN.sub("", text)
+        return text.strip()
+
+    messages: list[dict] = []
+    for i, attrs in enumerate(blocks):
+        # If no result attr this is a model-emitted tag, not a stored result — skip.
+        if "result" not in attrs:
+            # Absorb pre-text into surrounding context by appending to next part.
+            if i + 1 < len(parts):
+                parts[i + 1] = parts[i] + parts[i + 1]
+            continue
+
+        pre_text = clean(parts[i])
+        tool_call_id = attrs.get("id") or f"{id_prefix}_{i}"
+        tool_name = attrs.get("name", "")
+        arguments = attrs.get("arguments", "{}")
+        try:
+            arguments = html.unescape(arguments)
+        except Exception:
+            pass
+        tool_result = _decode_result(attrs["result"])
+
+        messages.append(
+            {
+                "role": "assistant",
+                "content": pre_text,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": arguments},
+                    }
+                ],
+            }
+        )
+        messages.append(
+            {"role": "tool", "tool_call_id": tool_call_id, "content": tool_result}
+        )
+
+    trailing = clean(parts[-1])
+    if trailing:
+        messages.append({"role": "assistant", "content": trailing})
+
+    return messages
+
+
+def expand_ui_tags_in_messages(messages: list[dict]) -> list[dict]:
+    """Expand stored UI tags in assistant messages into LLM-safe message sequences.
+
+    Two stored formats are handled:
+
+    1. <details type="tool_calls" done="true" id="..." name="..." result="...">
+       Written by serialize_content_blocks(). Unlikely to appear here since the
+       frontend converts these via processDetails() before sending, but handled
+       as a safety net.
+
+    2. <tool_calls name="..." result="..."/>
+       Produced by the frontend's processDetails() for prior-turn history. This
+       is the primary format that arrives at the backend for cross-turn context.
+
+    Both formats are expanded into role:assistant (with tool_calls field) +
+    role:tool pairs so the model receives proper structured tool history.
+
+    Tags with no result attribute are model-emitted leakage and are stripped.
+    <details type="reasoning|code_interpreter"> are always stripped.
+    Multimodal list-content messages pass through unchanged.
+    """
+    result: list[dict] = []
+
     for message in messages:
-        if message.get("role") == "assistant" and isinstance(
+        if message.get("role") != "assistant" or not isinstance(
             message.get("content"), str
         ):
-            content = _UI_DETAILS_PATTERN.sub("", message["content"])
-            content = _RAW_TOOL_CALLS_PATTERN.sub("", content)
-            message["content"] = content.strip()
-    return messages
+            result.append(message)
+            continue
+
+        content = message["content"]
+
+        has_details = bool(_TOOL_CALLS_DETAILS_PATTERN.search(content))
+        has_inline = bool(_INLINE_TOOL_CALLS_PATTERN.search(content))
+
+        if not has_details and not has_inline:
+            # No tool-call tags — strip non-tool UI tags and pass through.
+            content = _NON_TOOL_DETAILS_PATTERN.sub("", content)
+            result.append({**message, "content": content.strip()})
+            continue
+
+        # Expand <details type="tool_calls"> blocks first (safety net for direct DB content).
+        if has_details:
+            expanded = _expand_blocks(content, _TOOL_CALLS_DETAILS_PATTERN, "hist_detail")
+            # Flatten expanded messages, then re-process any inline tags in text messages.
+            for m in expanded:
+                if m.get("role") == "assistant" and isinstance(m.get("content"), str):
+                    inner = m["content"]
+                    if _INLINE_TOOL_CALLS_PATTERN.search(inner):
+                        result.extend(
+                            _expand_blocks(inner, _INLINE_TOOL_CALLS_PATTERN, "hist_inline")
+                        )
+                    else:
+                        result.append(m)
+                else:
+                    result.append(m)
+        else:
+            # Only inline <tool_calls/> tags — the common prior-turn case.
+            result.extend(
+                _expand_blocks(content, _INLINE_TOOL_CALLS_PATTERN, "hist_inline")
+            )
+
+    return result
 
 
 def openai_chat_message_template(model: str):
