@@ -1100,7 +1100,8 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
-		const { id, done, choices, content, content_blocks, sources, selected_model_id, error, usage } = data;
+		const { id, done, choices, content, content_blocks, sources, selected_model_id, error, usage } =
+			data;
 
 		if (error) {
 			await handleOpenAIError(error, message);
