@@ -1810,6 +1810,7 @@ async def process_chat_response(
                                                     "content": serialize_content_blocks(
                                                         content_blocks
                                                     ),
+                                                    "content_blocks": content_blocks,
                                                 },
                                             )
                                         else:
@@ -2215,6 +2216,7 @@ async def process_chat_response(
                 data = {
                     "done": True,
                     "content": serialize_content_blocks(content_blocks),
+                    "content_blocks": content_blocks,
                     "title": title,
                 }
 
@@ -2225,6 +2227,7 @@ async def process_chat_response(
                         metadata["message_id"],
                         {
                             "content": serialize_content_blocks(content_blocks),
+                            "content_blocks": content_blocks,
                         },
                     )
 
@@ -2263,6 +2266,7 @@ async def process_chat_response(
                         metadata["message_id"],
                         {
                             "content": serialize_content_blocks(content_blocks),
+                            "content_blocks": content_blocks,
                         },
                     )
 

@@ -49,7 +49,8 @@
 		sleep,
 		removeDetails,
 		getPromptVariables,
-		processDetails
+		processDetails,
+		expandContentBlocks
 	} from '$lib/utils';
 
 	import { generateChatCompletion } from '$lib/apis/ollama';
@@ -879,12 +880,14 @@
 			for (const message of res.messages) {
 				if (message?.id) {
 					// Add null check for message and message.id
+					const _existing = history.messages[message.id];
 					history.messages[message.id] = {
-						...history.messages[message.id],
-						...(history.messages[message.id].content !== message.content
-							? { originalContent: history.messages[message.id].content }
+						..._existing,
+						...(_existing.content !== message.content
+							? { originalContent: _existing.content }
 							: {}),
-						...message
+						...message,
+						...(_existing?.content_blocks ? { content_blocks: _existing.content_blocks } : {})
 					};
 				}
 			}
@@ -1097,7 +1100,7 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
-		const { id, done, choices, content, sources, selected_model_id, error, usage } = data;
+		const { id, done, choices, content, content_blocks, sources, selected_model_id, error, usage } = data;
 
 		if (error) {
 			await handleOpenAIError(error, message);
@@ -1194,6 +1197,10 @@
 
 		if (done) {
 			message.done = true;
+
+			if (content_blocks) {
+				message.content_blocks = content_blocks;
+			}
 
 			if ($settings.responseAutoCopy) {
 				copyToClipboard(message.content);
@@ -1534,15 +1541,19 @@
 						}`
 					}
 				: undefined,
-			...createMessagesList(_history, responseMessageId).map((message) => ({
-				...message,
-				content: processDetails(message.content)
-			}))
+			...createMessagesList(_history, responseMessageId).flatMap((message) => {
+				if (message.content_blocks) {
+					return expandContentBlocks(message.content_blocks);
+				}
+				return [{ ...message, content: processDetails(message.content) }];
+			})
 		].filter((message) => message);
 
 		messages = messages
 			.map((message, idx, arr) => ({
 				role: message.role,
+				...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+				...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
 				...((message.files?.filter((file) => file.type === 'image').length > 0 ?? false) &&
 				message.role === 'user'
 					? {
@@ -1565,7 +1576,13 @@
 							content: message?.merged?.content ?? message.content
 						})
 			}))
-			.filter((message) => message?.role === 'user' || message?.content?.trim());
+			.filter(
+				(message) =>
+					message?.role === 'user' ||
+					message?.role === 'tool' ||
+					message?.tool_calls ||
+					message?.content?.trim()
+			);
 
 		const res = await generateOpenAIChatCompletion(
 			localStorage.token,

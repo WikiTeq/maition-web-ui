@@ -204,7 +204,7 @@ _TOOL_CALLS_DETAILS_PATTERN = re.compile(
 # history back to the backend.
 # Group 1 = full attribute string inside the tag.
 _INLINE_TOOL_CALLS_PATTERN = re.compile(
-    r"<tool_calls\b([^/]*)/?>",
+    r'<tool_calls\b((?:[^>"\']|"[^"]*"|\'[^\']*\')*)/>',
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -290,6 +290,61 @@ def _expand_blocks(content: str, pattern: re.Pattern, id_prefix: str) -> list[di
         messages.append({"role": "assistant", "content": trailing})
 
     return messages
+
+
+def rebuild_messages_from_content_blocks(messages: list[dict]) -> list[dict]:
+    """For assistant messages that carry a content_blocks field, reconstruct
+    proper OpenAI assistant+tool message pairs and drop the raw content_blocks
+    field so the LLM never sees it.  Messages without content_blocks pass through
+    unchanged.
+    """
+    rebuilt: list[dict] = []
+
+    for message in messages:
+        blocks = message.get("content_blocks") if message.get("role") == "assistant" else None
+
+        if not blocks:
+            stripped = {k: v for k, v in message.items() if k != "content_blocks"}
+            rebuilt.append(stripped)
+            continue
+
+        pending_text = ""
+        for block in blocks:
+            if block.get("type") == "tool_calls":
+                tool_calls = block.get("content") or []
+                results = block.get("results") or []
+
+                rebuilt.append({
+                    "role": "assistant",
+                    "content": pending_text.strip() or None,
+                    "tool_calls": [
+                        {
+                            "id": tc.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": tc.get("function", {}).get("name", ""),
+                                "arguments": tc.get("function", {}).get("arguments", "{}"),
+                            },
+                        }
+                        for tc in tool_calls
+                    ],
+                })
+                pending_text = ""
+
+                for r in results:
+                    rebuilt.append({
+                        "role": "tool",
+                        "tool_call_id": r.get("tool_call_id"),
+                        "content": r.get("content"),
+                    })
+
+            elif block.get("type") != "reasoning":
+                pending_text += block.get("content") or ""
+
+        if pending_text.strip():
+            rebuilt.append({"role": "assistant", "content": pending_text.strip()})
+
+    return rebuilt
 
 
 def expand_ui_tags_in_messages(messages: list[dict]) -> list[dict]:

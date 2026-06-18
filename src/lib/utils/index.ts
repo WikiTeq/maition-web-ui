@@ -776,6 +776,48 @@ export const removeAllDetails = (content) => {
 	return content;
 };
 
+export const expandContentBlocks = (contentBlocks: any[]): any[] => {
+	const messages: any[] = [];
+	let pendingText = '';
+
+	for (const block of contentBlocks) {
+		if (block.type === 'tool_calls') {
+			const toolCalls = block.content ?? [];
+			const results = block.results ?? [];
+
+			messages.push({
+				role: 'assistant',
+				content: pendingText.trim() || null,
+				tool_calls: toolCalls.map((tc: any) => ({
+					id: tc.id,
+					type: 'function',
+					function: {
+						name: tc.function?.name ?? '',
+						arguments: tc.function?.arguments ?? '{}'
+					}
+				}))
+			});
+			pendingText = '';
+
+			for (const result of results) {
+				messages.push({
+					role: 'tool',
+					tool_call_id: result.tool_call_id,
+					content: result.content
+				});
+			}
+		} else if (block.type !== 'reasoning') {
+			pendingText += block.content ?? '';
+		}
+	}
+
+	if (pendingText.trim()) {
+		messages.push({ role: 'assistant', content: pendingText.trim() });
+	}
+
+	return messages;
+};
+
 export const processDetails = (content) => {
 	content = removeDetails(content, ['reasoning', 'code_interpreter']);
 
