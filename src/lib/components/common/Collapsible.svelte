@@ -97,7 +97,8 @@
 		>
 			<div
 				class=" w-full font-medium flex items-center justify-between gap-2 {attributes?.done &&
-				attributes?.done !== 'true' && !msgCompleted
+				attributes?.done !== 'true' &&
+				!msgCompleted
 					? 'shimmer'
 					: ''}
 			"
