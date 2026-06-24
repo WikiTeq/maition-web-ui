@@ -1326,7 +1326,9 @@ async def process_chat_response(
                         messages.append(
                             {
                                 "role": "assistant",
-                                "content": serialize_content_blocks(temp_blocks),
+                                "content": serialize_content_blocks(
+                                    [b for b in temp_blocks if b["type"] != "reasoning"]
+                                ),
                                 "tool_calls": block.get("content"),
                             }
                         )
@@ -1346,7 +1348,9 @@ async def process_chat_response(
                         temp_blocks.append(block)
 
                 if temp_blocks:
-                    content = serialize_content_blocks(temp_blocks)
+                    content = serialize_content_blocks(
+                        [b for b in temp_blocks if b["type"] != "reasoning"]
+                    )
                     if content:
                         messages.append(
                             {
@@ -1806,6 +1810,7 @@ async def process_chat_response(
                                                     "content": serialize_content_blocks(
                                                         content_blocks
                                                     ),
+                                                    "content_blocks": content_blocks,
                                                 },
                                             )
                                         else:
@@ -2211,6 +2216,7 @@ async def process_chat_response(
                 data = {
                     "done": True,
                     "content": serialize_content_blocks(content_blocks),
+                    "content_blocks": content_blocks,
                     "title": title,
                 }
 
@@ -2221,6 +2227,7 @@ async def process_chat_response(
                         metadata["message_id"],
                         {
                             "content": serialize_content_blocks(content_blocks),
+                            "content_blocks": content_blocks,
                         },
                     )
 
@@ -2259,6 +2266,7 @@ async def process_chat_response(
                         metadata["message_id"],
                         {
                             "content": serialize_content_blocks(content_blocks),
+                            "content_blocks": content_blocks,
                         },
                     )
 
