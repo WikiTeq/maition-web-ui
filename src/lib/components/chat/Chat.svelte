@@ -247,8 +247,6 @@
 	};
 
 	const chatEventHandler = async (event, cb) => {
-		console.log(event);
-
 		if (event.chat_id === $chatId) {
 			await tick();
 			let message = history.messages[event.message_id];
@@ -1201,6 +1199,36 @@
 
 			if (content_blocks) {
 				message.content_blocks = content_blocks;
+
+				// Rebuild message.content from content_blocks so tool_calls blocks are rendered.
+				// The backend sends tool_calls only in content_blocks, not in the content string.
+				let rebuilt = '';
+				for (const block of content_blocks) {
+					if (block.type === 'reasoning') {
+						const duration = block.attributes?.duration ?? '0';
+						const done_attr = block.done ?? true;
+						rebuilt += `\n<details type="reasoning" done="${done_attr}" duration="${duration}">\n<summary>${duration > 0 ? `Thought for ${duration} seconds` : 'Thought for 0 seconds'}</summary>\n${block.content ?? ''}\n</details>\n`;
+					} else if (block.type === 'tool_calls') {
+						for (const tc of block.content ?? []) {
+							const result = (block.results ?? []).find((r: any) => r.tool_call_id === tc.id);
+							const name = tc.function?.name ?? '';
+							const args = JSON.stringify(tc.function?.arguments ?? {});
+							const escapedArgs = args.replace(/"/g, '&quot;');
+							if (result) {
+								const resultContent = JSON.stringify(result.content ?? '');
+								const escapedResult = resultContent.replace(/"/g, '&quot;');
+								rebuilt += `\n<details type="tool_calls" done="true" id="${tc.id}" name="${name}" arguments="${escapedArgs}" result="${escapedResult}" files="">\n<summary>Tool Executed</summary>\n</details>\n`;
+							} else {
+								rebuilt += `\n<details type="tool_calls" done="false" id="${tc.id}" name="${name}" arguments="${escapedArgs}">\n<summary>Executing...</summary>\n</details>\n`;
+							}
+						}
+					} else if (block.type === 'text') {
+						rebuilt += block.content ?? '';
+					}
+				}
+				if (rebuilt.trim()) {
+					message.content = rebuilt;
+				}
 			}
 
 			if ($settings.responseAutoCopy) {
@@ -1242,7 +1270,6 @@
 			);
 		}
 
-		console.log(data);
 		if (autoScroll) {
 			scrollToBottom();
 		}
