@@ -395,6 +395,16 @@ WEBSOCKET_MANAGER = os.environ.get("WEBSOCKET_MANAGER", "")
 WEBSOCKET_REDIS_URL = os.environ.get("WEBSOCKET_REDIS_URL", REDIS_URL)
 WEBSOCKET_REDIS_LOCK_TIMEOUT = os.environ.get("WEBSOCKET_REDIS_LOCK_TIMEOUT", 60)
 
+_websocket_redis_options_raw = os.environ.get("WEBSOCKET_REDIS_OPTIONS", "")
+if _websocket_redis_options_raw:
+    try:
+        WEBSOCKET_REDIS_OPTIONS: dict | None = json.loads(_websocket_redis_options_raw)
+    except Exception:
+        log.warning("Invalid WEBSOCKET_REDIS_OPTIONS value, defaulting to None")
+        WEBSOCKET_REDIS_OPTIONS = None
+else:
+    WEBSOCKET_REDIS_OPTIONS = None
+
 WEBSOCKET_SENTINEL_HOSTS = os.environ.get("WEBSOCKET_SENTINEL_HOSTS", "")
 
 WEBSOCKET_SENTINEL_PORT = os.environ.get("WEBSOCKET_SENTINEL_PORT", "26379")
