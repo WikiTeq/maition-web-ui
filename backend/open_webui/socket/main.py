@@ -20,6 +20,7 @@ from open_webui.env import (
     WEBSOCKET_REDIS_LOCK_TIMEOUT,
     WEBSOCKET_SENTINEL_PORT,
     WEBSOCKET_SENTINEL_HOSTS,
+    WEBSOCKET_REDIS_OPTIONS,
 )
 from open_webui.utils.auth import decode_token
 from open_webui.socket.utils import RedisDict, RedisLock
@@ -40,10 +41,14 @@ if WEBSOCKET_MANAGER == "redis":
         mgr = socketio.AsyncRedisManager(
             get_sentinel_url_from_env(
                 WEBSOCKET_REDIS_URL, WEBSOCKET_SENTINEL_HOSTS, WEBSOCKET_SENTINEL_PORT
-            )
+            ),
+            redis_options=WEBSOCKET_REDIS_OPTIONS,
         )
     else:
-        mgr = socketio.AsyncRedisManager(WEBSOCKET_REDIS_URL)
+        mgr = socketio.AsyncRedisManager(
+            WEBSOCKET_REDIS_URL,
+            redis_options=WEBSOCKET_REDIS_OPTIONS,
+        )
     sio = socketio.AsyncServer(
         cors_allowed_origins=[],
         async_mode="asgi",
