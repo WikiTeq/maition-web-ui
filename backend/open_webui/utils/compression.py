@@ -17,10 +17,24 @@ from starlette.requests import Request
 # in-memory buffering of the full response.
 MAX_COMPRESSIBLE_BODY_SIZE = 10 * 1024 * 1024
 
+# Mid compression levels, tuned for on-the-fly per-request latency rather
+# than offline/one-time compression. Brotli's default quality of 11 in
+# particular can add tens of ms per response even on ~20KB JSON.
+GZIP_LEVEL = 6
+BROTLI_QUALITY = 4
+ZSTD_LEVEL = 4
+
 COMPRESSIBLE_CONTENT_TYPES = {
     "application/json",
     "application/javascript",
+    "application/manifest+json",
+    "application/wasm",
     "application/xml",
+    "application/x-font-ttf",
+    "font/otf",
+    "font/ttf",
+    "font/woff",
+    "font/woff2",
     "text/css",
     "text/html",
     "text/javascript",
@@ -31,15 +45,15 @@ COMPRESSIBLE_CONTENT_TYPES = {
 
 
 def _compress_gzip(body: bytes) -> bytes:
-    return gzip.compress(body)
+    return gzip.compress(body, compresslevel=GZIP_LEVEL)
 
 
 def _compress_brotli(body: bytes) -> bytes:
-    return brotli.compress(body)
+    return brotli.compress(body, quality=BROTLI_QUALITY)
 
 
 def _compress_zstd(body: bytes) -> bytes:
-    return zstandard.ZstdCompressor().compress(body)
+    return zstandard.ZstdCompressor(level=ZSTD_LEVEL).compress(body)
 
 
 ENCODERS: dict[str, Callable[[bytes], bytes]] = {
@@ -185,7 +199,9 @@ class ResponseCompressionMiddleware:
 
             if message["type"] == "http.response.start":
                 headers = Headers(raw=message.get("headers", []))
-                content_type = headers.get("content-type", "").split(";")[0].strip()
+                content_type = (
+                    headers.get("content-type", "").split(";")[0].strip().lower()
+                )
                 should_compress = (
                     message.get("status", 200) != 206
                     and "content-range" not in headers

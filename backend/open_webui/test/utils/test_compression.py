@@ -167,6 +167,47 @@ def test_non_compressible_content_type_passes_through():
     assert body_msg["body"] == body
 
 
+def test_font_and_wasm_content_types_are_compressed():
+    body = b"x" * 1000
+    for content_type in (
+        "font/ttf",
+        "font/otf",
+        "font/woff",
+        "font/woff2",
+        "application/x-font-ttf",
+        "application/wasm",
+        "application/manifest+json",
+    ):
+        sent = _run(
+            _call_middleware(
+                {"minimum_size": 500},
+                {"accept-encoding": "gzip"},
+                [body],
+                {"content-type": content_type},
+            )
+        )
+        start, body_msg = sent
+        headers = _headers_dict(start)
+        assert headers["content-encoding"] == "gzip", content_type
+        assert body_msg["body"] != body, content_type
+
+
+def test_content_type_matching_is_case_insensitive():
+    body = b"x" * 1000
+    sent = _run(
+        _call_middleware(
+            {"minimum_size": 500},
+            {"accept-encoding": "gzip"},
+            [body],
+            {"content-type": "Application/JSON"},
+        )
+    )
+    start, body_msg = sent
+    headers = _headers_dict(start)
+    assert headers["content-encoding"] == "gzip"
+    assert body_msg["body"] != body
+
+
 def test_streaming_content_type_is_never_buffered_or_compressed():
     chunks = [b"data: one\n\n", b"data: two\n\n"]
     sent = _run(
