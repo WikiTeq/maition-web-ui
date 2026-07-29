@@ -246,6 +246,19 @@
 		saveChatHandler(_chatId, history);
 	};
 
+	// Mirrors the backend's html.escape(json.dumps(...)) used when serializing
+	// tool_calls <details> blocks (backend/open_webui/utils/middleware.py). Tool
+	// result content can contain raw HTML-like markup (e.g. MediaWiki <ref> tags);
+	// leaving < and > unescaped corrupts the details tag's structure and breaks
+	// the marked.js details tokenizer, silently dropping the rendered result.
+	const escapeHtmlAttribute = (str: string) =>
+		str
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#x27;');
+
 	const chatEventHandler = async (event, cb) => {
 		if (event.chat_id === $chatId) {
 			await tick();
@@ -1213,10 +1226,10 @@
 							const result = (block.results ?? []).find((r: any) => r.tool_call_id === tc.id);
 							const name = tc.function?.name ?? '';
 							const args = JSON.stringify(tc.function?.arguments ?? {});
-							const escapedArgs = args.replace(/"/g, '&quot;');
+							const escapedArgs = escapeHtmlAttribute(args);
 							if (result) {
 								const resultContent = JSON.stringify(result.content ?? '');
-								const escapedResult = resultContent.replace(/"/g, '&quot;');
+								const escapedResult = escapeHtmlAttribute(resultContent);
 								rebuilt += `\n<details type="tool_calls" done="true" id="${tc.id}" name="${name}" arguments="${escapedArgs}" result="${escapedResult}" files="">\n<summary>Tool Executed</summary>\n</details>\n`;
 							} else {
 								rebuilt += `\n<details type="tool_calls" done="false" id="${tc.id}" name="${name}" arguments="${escapedArgs}">\n<summary>Executing...</summary>\n</details>\n`;

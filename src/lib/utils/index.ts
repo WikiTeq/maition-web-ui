@@ -46,12 +46,18 @@ export const replaceTokens = (content, sourceIds, char, user) => {
 		}
 	];
 
-	// Replace tokens outside code blocks only
+	// Replace tokens outside code blocks and <details> blocks only.
+	// <details> blocks (e.g. tool_calls, reasoning) embed raw tool output inside
+	// HTML attributes; substituting inside them can inject markup into an attribute
+	// value and corrupt the block so the marked.js details tokenizer no longer
+	// recognizes it, silently dropping the rendered result.
 	const processOutsideCodeBlocks = (text, replacementFn) => {
 		return text
-			.split(/(```[\s\S]*?```|`[\s\S]*?`)/)
+			.split(/(```[\s\S]*?```|`[\s\S]*?`|<details[\s\S]*?<\/details>)/)
 			.map((segment) => {
-				return segment.startsWith('```') || segment.startsWith('`')
+				return segment.startsWith('```') ||
+					segment.startsWith('`') ||
+					segment.startsWith('<details')
 					? segment
 					: replacementFn(segment);
 			})
