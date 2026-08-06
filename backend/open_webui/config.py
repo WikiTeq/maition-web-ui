@@ -992,6 +992,15 @@ MODEL_ORDER_LIST = PersistentConfig(
     [],
 )
 
+GENERIC_ERROR_MESSAGE = PersistentConfig(
+    "GENERIC_ERROR_MESSAGE",
+    "ui.generic_error_message",
+    os.environ.get(
+        "GENERIC_ERROR_MESSAGE",
+        "An error occurred while processing your request. Please try again.",
+    ),
+)
+
 DEFAULT_USER_ROLE = PersistentConfig(
     "DEFAULT_USER_ROLE",
     "ui.default_user_role",

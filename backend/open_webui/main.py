@@ -270,6 +270,7 @@ from open_webui.config import (
     DEFAULT_MODELS,
     DEFAULT_ARENA_MODEL,
     MODEL_ORDER_LIST,
+    GENERIC_ERROR_MESSAGE,
     EVALUATION_ARENA_MODELS,
     # WebUI (OAuth)
     ENABLE_OAUTH_ROLE_MANAGEMENT,
@@ -541,6 +542,7 @@ app.state.config.USER_PERMISSIONS = USER_PERMISSIONS
 app.state.config.WEBHOOK_URL = WEBHOOK_URL
 app.state.config.BANNERS = WEBUI_BANNERS
 app.state.config.MODEL_ORDER_LIST = MODEL_ORDER_LIST
+app.state.config.GENERIC_ERROR_MESSAGE = GENERIC_ERROR_MESSAGE
 
 
 app.state.config.ENABLE_CHANNELS = ENABLE_CHANNELS
@@ -1309,6 +1311,7 @@ async def get_app_config(request: Request):
             {
                 "default_models": app.state.config.DEFAULT_MODELS,
                 "default_prompt_suggestions": app.state.config.DEFAULT_PROMPT_SUGGESTIONS,
+                "generic_error_message": app.state.config.GENERIC_ERROR_MESSAGE,
                 "user_count": user_count,
                 "code": {
                     "engine": app.state.config.CODE_EXECUTION_ENGINE,
