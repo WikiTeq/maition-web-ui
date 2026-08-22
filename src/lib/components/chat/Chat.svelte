@@ -1707,7 +1707,7 @@
 
 		if (useGenericMessage) {
 			errorMessage =
-				$config?.generic_error_message ??
+				$config?.generic_error_message ||
 				$i18n.t('An error occurred while processing your request. Please try again.');
 		} else if (innerError && typeof innerError === 'object') {
 			if ('detail' in innerError) {
