@@ -883,8 +883,8 @@
 					const _existing = history.messages[message.id];
 					history.messages[message.id] = {
 						..._existing,
-						...(_existing.content !== message.content
-							? { originalContent: _existing.content }
+						...(_existing?.content !== message.content
+							? { originalContent: _existing?.content }
 							: {}),
 						...message,
 						...(_existing?.content_blocks ? { content_blocks: _existing.content_blocks } : {})
