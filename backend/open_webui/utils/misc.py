@@ -227,6 +227,27 @@ def _decode_result(raw: str) -> str:
         return raw
 
 
+def _decode_arguments(raw: str) -> str:
+    """HTML-unescape a stored arguments attribute and restore the original
+    arguments payload as required for tool_calls[].function.arguments
+    (a JSON-encoded string per the OpenAI chat-completions schema).
+
+    serialize_content_blocks() stores html.escape(json.dumps(value)), where
+    value itself may be a JSON string (OpenAI-style tool calls) or an object
+    (Ollama-native style), so undoing the single outer json.dumps leaves the
+    original string intact in both cases. Falls back to the unescaped
+    string when parsing fails.
+    """
+    value = html.unescape(raw)
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        return value
+    if isinstance(parsed, str):
+        return parsed
+    return json.dumps(parsed)
+
+
 def _expand_blocks(content: str, pattern: re.Pattern, id_prefix: str) -> list[dict]:
     """Split content on matched tool-call blocks and return expanded message list.
 
@@ -261,11 +282,7 @@ def _expand_blocks(content: str, pattern: re.Pattern, id_prefix: str) -> list[di
         pre_text = clean(parts[i])
         tool_call_id = attrs.get("id") or f"{id_prefix}_{i}"
         tool_name = attrs.get("name", "")
-        arguments = attrs.get("arguments", "{}")
-        try:
-            arguments = html.unescape(arguments)
-        except Exception:
-            pass
+        arguments = _decode_arguments(attrs.get("arguments", "{}"))
         tool_result = _decode_result(attrs["result"])
 
         messages.append(
