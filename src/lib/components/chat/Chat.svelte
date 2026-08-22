@@ -1667,12 +1667,7 @@
 			},
 			`${WEBUI_BASE_URL}/api`
 		).catch(async (error) => {
-			toast.error(`${error}`);
-
-			responseMessage.error = {
-				content: error
-			};
-			responseMessage.done = true;
+			await handleOpenAIError(error, responseMessage, true);
 
 			history.messages[responseMessageId] = responseMessage;
 			history.currentId = responseMessageId;
@@ -1681,7 +1676,7 @@
 
 		if (res) {
 			if (res.error) {
-				await handleOpenAIError(res.error, responseMessage);
+				await handleOpenAIError(res.error, responseMessage, true);
 			} else {
 				if (taskIds) {
 					taskIds.push(res.task_id);
@@ -1695,7 +1690,12 @@
 		scrollToBottom();
 	};
 
-	const handleOpenAIError = async (error, responseMessage) => {
+	// `useGenericMessage` is only set by the non-streaming call site (see
+	// `res.error` branch above). The streaming call site
+	// (`chatCompletionEventHandler`) leaves it `false` so mid-stream errors
+	// keep showing their raw provider text, unchanged (MAIT-348 is scoped to
+	// non-streaming errors only).
+	const handleOpenAIError = async (error, responseMessage, useGenericMessage = false) => {
 		let errorMessage = '';
 		let innerError;
 
@@ -1704,27 +1704,36 @@
 		}
 
 		console.error(innerError);
-		if ('detail' in innerError) {
-			// FastAPI error
-			toast.error(innerError.detail);
-			errorMessage = innerError.detail;
-		} else if ('error' in innerError) {
-			// OpenAI error
-			if ('message' in innerError.error) {
-				toast.error(innerError.error.message);
-				errorMessage = innerError.error.message;
-			} else {
-				toast.error(innerError.error);
-				errorMessage = innerError.error;
+
+		if (useGenericMessage) {
+			errorMessage =
+				$config?.generic_error_message ||
+				$i18n.t('An error occurred while processing your request. Please try again.');
+		} else if (innerError && typeof innerError === 'object') {
+			if ('detail' in innerError) {
+				// FastAPI error
+				errorMessage = innerError.detail;
+			} else if ('error' in innerError) {
+				// OpenAI error
+				errorMessage = 'message' in innerError.error ? innerError.error.message : innerError.error;
+			} else if ('message' in innerError) {
+				// OpenAI error
+				errorMessage = innerError.message;
 			}
-		} else if ('message' in innerError) {
-			// OpenAI error
-			toast.error(innerError.message);
-			errorMessage = innerError.message;
+		} else {
+			// innerError is a string, null, or another non-object shape
+			errorMessage = `${innerError}`;
 		}
 
+		toast.error(errorMessage);
+
 		responseMessage.error = {
-			content: $i18n.t(`Uh-oh! There was an issue with the response.`) + '\n' + errorMessage
+			// The generic message stands alone; the "Uh-oh!" prefix stays only
+			// for the raw-error (streaming) path, which is unchanged by
+			// MAIT-348.
+			content: useGenericMessage
+				? errorMessage
+				: $i18n.t(`Uh-oh! There was an issue with the response.`) + '\n' + errorMessage
 		};
 		responseMessage.done = true;
 

@@ -369,6 +369,29 @@
 						</div>
 					</div>
 
+					<div class=" mb-2.5 w-full justify-between">
+						<div class="flex w-full justify-between">
+							<div class=" self-center text-xs font-medium">
+								{$i18n.t('Generic Error Message')}
+							</div>
+						</div>
+
+						<div class="flex mt-2 space-x-2">
+							<input
+								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+								type="text"
+								placeholder={$i18n.t('An error occurred while processing your request. Please try again.')}
+								bind:value={adminConfig.GENERIC_ERROR_MESSAGE}
+							/>
+						</div>
+
+						<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t(
+								'Shown to users instead of the raw error message when an inference request fails.'
+							)}
+						</div>
+					</div>
+
 					<div class=" space-y-3">
 						<div class="mt-2 space-y-2 pr-1.5">
 							<div class="flex justify-between items-center text-sm">

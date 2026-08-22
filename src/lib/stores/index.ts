@@ -199,6 +199,7 @@ type Config = {
 	default_locale: string;
 	default_models: string;
 	default_prompt_suggestions: PromptSuggestion[];
+	generic_error_message: string;
 	features: {
 		auth: boolean;
 		auth_trusted_header: boolean;
