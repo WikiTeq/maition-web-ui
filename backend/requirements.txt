@@ -33,6 +33,8 @@ RestrictedPython==8.0
 
 loguru==0.7.2
 asgiref==3.8.1
+starlette-compress==1.6.1
+brotli>=1.2.1
 
 # AI libraries
 openai

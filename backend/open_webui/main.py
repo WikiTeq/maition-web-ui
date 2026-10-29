@@ -43,6 +43,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response, StreamingResponse
+from starlette_compress import CompressMiddleware
 
 
 from open_webui.utils import logger
@@ -986,6 +987,11 @@ if audit_level != AuditLevel.NONE:
         excluded_paths=AUDIT_EXCLUDED_PATHS,
         max_body_size=MAX_BODY_LOG_SIZE,
     )
+
+# Registered after AuditLoggingMiddleware so it wraps outside it in the
+# middleware stack (Starlette wraps in reverse add order) — audit logs must
+# capture readable request/response bodies, not compressed bytes.
+app.add_middleware(CompressMiddleware)
 ##################################
 #
 # Chat Endpoints
