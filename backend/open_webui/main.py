@@ -1,36 +1,26 @@
 import asyncio
-import inspect
 import json
 import logging
 import mimetypes
 import os
-import shutil
 import sys
 import time
-import random
 
 from contextlib import asynccontextmanager
 from urllib.parse import urlencode, parse_qs, urlparse
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from typing import Optional
-from aiocache import cached
-import aiohttp
 import requests
 
 
 from fastapi import (
     Depends,
     FastAPI,
-    File,
-    Form,
     HTTPException,
     Request,
-    UploadFile,
     status,
     applications,
-    BackgroundTasks,
 )
 
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -42,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import Response, StreamingResponse
+from starlette.responses import Response
 
 
 from open_webui.utils import logger
@@ -88,7 +78,7 @@ from open_webui.internal.db import Session, engine
 
 from open_webui.models.functions import Functions
 from open_webui.models.models import Models
-from open_webui.models.users import UserModel, Users
+from open_webui.models.users import Users
 from open_webui.models.chats import Chats
 
 from open_webui.config import (
@@ -99,7 +89,6 @@ from open_webui.config import (
     OLLAMA_API_CONFIGS,
     # OpenAI
     ENABLE_OPENAI_API,
-    ONEDRIVE_CLIENT_ID,
     OPENAI_API_BASE_URLS,
     OPENAI_API_KEYS,
     OPENAI_API_CONFIGS,
@@ -168,19 +157,13 @@ from open_webui.config import (
     WHISPER_MODEL,
     WHISPER_VAD_FILTER,
     DEEPGRAM_API_KEY,
-    WHISPER_MODEL_AUTO_UPDATE,
-    WHISPER_MODEL_DIR,
-    # Retrieval
     RAG_TEMPLATE,
-    DEFAULT_RAG_TEMPLATE,
     RAG_FULL_CONTEXT,
     BYPASS_EMBEDDING_AND_RETRIEVAL,
     RAG_EMBEDDING_MODEL,
     RAG_EMBEDDING_MODEL_AUTO_UPDATE,
-    RAG_EMBEDDING_MODEL_TRUST_REMOTE_CODE,
     RAG_RERANKING_MODEL,
     RAG_RERANKING_MODEL_AUTO_UPDATE,
-    RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
     RAG_EMBEDDING_ENGINE,
     RAG_EMBEDDING_BATCH_SIZE,
     RAG_RELEVANCE_THRESHOLD,
@@ -241,12 +224,9 @@ from open_webui.config import (
     GOOGLE_DRIVE_API_KEY,
     ONEDRIVE_CLIENT_ID,
     ENABLE_RAG_HYBRID_SEARCH,
-    ENABLE_RAG_LOCAL_WEB_FETCH,
     ENABLE_WEB_LOADER_SSL_VERIFICATION,
     ENABLE_GOOGLE_DRIVE_INTEGRATION,
     ENABLE_ONEDRIVE_INTEGRATION,
-    UPLOAD_DIR,
-    # WebUI
     WEBUI_AUTH,
     WEBUI_NAME,
     WEBUI_BANNERS,
@@ -268,7 +248,6 @@ from open_webui.config import (
     DEFAULT_USER_ROLE,
     DEFAULT_PROMPT_SUGGESTIONS,
     DEFAULT_MODELS,
-    DEFAULT_ARENA_MODEL,
     MODEL_ORDER_LIST,
     EVALUATION_ARENA_MODELS,
     # WebUI (OAuth)
@@ -344,7 +323,6 @@ from open_webui.env import (
     ENABLE_WEBSOCKET_SUPPORT,
     BYPASS_MODEL_ACCESS_CONTROL,
     RESET_CONFIG_ON_START,
-    OFFLINE_MODE,
     ENABLE_OTEL,
     EXTERNAL_PWA_MANIFEST_URL,
 )
@@ -409,17 +387,16 @@ class SPAStaticFiles(StaticFiles):
 
 print(
     rf"""
- ██████╗ ██████╗ ███████╗███╗   ██╗    ██╗    ██╗███████╗██████╗ ██╗   ██╗██╗
-██╔═══██╗██╔══██╗██╔════╝████╗  ██║    ██║    ██║██╔════╝██╔══██╗██║   ██║██║
-██║   ██║██████╔╝█████╗  ██╔██╗ ██║    ██║ █╗ ██║█████╗  ██████╔╝██║   ██║██║
-██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║    ██║███╗██║██╔══╝  ██╔══██╗██║   ██║██║
-╚██████╔╝██║     ███████╗██║ ╚████║    ╚███╔███╔╝███████╗██████╔╝╚██████╔╝██║
- ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝     ╚══╝╚══╝ ╚══════╝╚═════╝  ╚═════╝ ╚═╝
-
+███╗   ███╗ █████╗ ██╗████████╗██╗ ██████╗ ███╗   ██╗
+████╗ ████║██╔══██╗██║╚══██╔══╝██║██╔═══██╗████╗  ██║
+██╔████╔██║███████║██║   ██║   ██║██║   ██║██╔██╗ ██║
+██║╚██╔╝██║██╔══██║██║   ██║   ██║██║   ██║██║╚██╗██║
+██║ ╚═╝ ██║██║  ██║██║   ██║   ██║╚██████╔╝██║ ╚████║
+╚═╝     ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 
 v{VERSION} - building the best open-source AI user interface.
 {f"Commit: {WEBUI_BUILD_HASH}" if WEBUI_BUILD_HASH != "dev-build" else ""}
-https://github.com/open-webui/open-webui
+https://github.com/WikiTeq/mAItion
 """
 )
 
@@ -438,7 +415,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Open WebUI",
+    title="mAItion",
     docs_url="/docs" if ENV == "dev" else None,
     openapi_url="/openapi.json" if ENV == "dev" else None,
     redoc_url=None,
@@ -1375,25 +1352,28 @@ async def get_app_version():
 
 @app.get("/api/version/updates")
 async def get_app_latest_release_version(user=Depends(get_verified_user)):
-    if OFFLINE_MODE:
-        log.debug(
-            f"Offline mode is enabled, returning current version as latest version"
-        )
-        return {"current": VERSION, "latest": VERSION}
-    try:
-        timeout = aiohttp.ClientTimeout(total=1)
-        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
-            async with session.get(
-                "https://api.github.com/repos/open-webui/open-webui/releases/latest"
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-                latest_version = data["tag_name"]
+    # configuration via ENV is not supported in 0.6.5
+    return {"current": VERSION, "latest": VERSION}
 
-                return {"current": VERSION, "latest": latest_version[1:]}
-    except Exception as e:
-        log.debug(e)
-        return {"current": VERSION, "latest": VERSION}
+    # if OFFLINE_MODE:
+    #     log.debug(
+    #         f"Offline mode is enabled, returning current version as latest version"
+    #     )
+    #     return {"current": VERSION, "latest": VERSION}
+    # try:
+    #     timeout = aiohttp.ClientTimeout(total=1)
+    #     async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+    #         async with session.get(
+    #             "https://api.github.com/repos/open-webui/open-webui/releases/latest"
+    #         ) as response:
+    #             response.raise_for_status()
+    #             data = await response.json()
+    #             latest_version = data["tag_name"]
+    #
+    #             return {"current": VERSION, "latest": latest_version[1:]}
+    # except Exception as e:
+    #     log.debug(e)
+    #     return {"current": VERSION, "latest": VERSION}
 
 
 @app.get("/api/changelog")
@@ -1440,7 +1420,7 @@ async def get_manifest_json():
         return {
             "name": app.state.WEBUI_NAME,
             "short_name": app.state.WEBUI_NAME,
-            "description": "Open WebUI is an open, extensible, user-friendly interface for AI that adapts to your workflow.",
+            "description": "mAItion — AI-powered tool to chat, search and interact with your data",
             "start_url": "/",
             "display": "standalone",
             "background_color": "#343541",
