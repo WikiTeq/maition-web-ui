@@ -55,7 +55,7 @@
 	};
 
 	// Admin - Show Update Available Toast
-	let showUpdateToast = true;
+	// let showUpdateToast = true;
 	let showChangelog = true;
 
 	let showEmojiInCall = false;
@@ -107,10 +107,10 @@
 		saveSettings({ landingPageMode: landingPageMode });
 	};
 
-	const toggleShowUpdateToast = async () => {
-		showUpdateToast = !showUpdateToast;
-		saveSettings({ showUpdateToast: showUpdateToast });
-	};
+	// const toggleShowUpdateToast = async () => {
+	// 	showUpdateToast = !showUpdateToast;
+	// 	saveSettings({ showUpdateToast: showUpdateToast });
+	// };
 
 	const toggleNotificationSound = async () => {
 		notificationSound = !notificationSound;
@@ -272,7 +272,7 @@
 		responseAutoCopy = $settings.responseAutoCopy ?? false;
 
 		showUsername = $settings.showUsername ?? false;
-		showUpdateToast = $settings.showUpdateToast ?? true;
+		// showUpdateToast = $settings.showUpdateToast ?? true;
 		showChangelog = $settings.showChangelog ?? true;
 
 		showEmojiInCall = $settings.showEmojiInCall ?? false;
@@ -478,6 +478,7 @@
 			</div>
 
 			{#if $user?.role === 'admin'}
+				<!--
 				<div>
 					<div class=" py-0.5 flex w-full justify-between">
 						<div class=" self-center text-xs">
@@ -499,6 +500,7 @@
 						</button>
 					</div>
 				</div>
+				-->
 
 				<div>
 					<div class=" py-0.5 flex w-full justify-between">
