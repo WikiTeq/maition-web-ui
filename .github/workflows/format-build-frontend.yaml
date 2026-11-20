@@ -34,6 +34,8 @@ jobs:
 
       - name: Install Dependencies
         run: npm install
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
       - name: Format Frontend
         run: npm run format
@@ -61,6 +63,8 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
       - name: Run vitest
         run: npm run test:frontend
